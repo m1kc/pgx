@@ -638,6 +638,8 @@ func Encode(wbuf *WriteBuf, oid Oid, arg interface{}) error {
 		return encodeInt32Slice(wbuf, oid, arg)
 	case uint32:
 		return encodeUInt32(wbuf, oid, arg)
+	case []uint32:
+		return encodeUInt32Slice(wbuf, oid, arg)
 	case int64:
 		return encodeInt64(wbuf, oid, arg)
 	case []int64:
@@ -732,6 +734,17 @@ func Decode(vr *ValueReader, d interface{}) error {
 		*v = decodeInt2Array(vr)
 	case *[]int32:
 		*v = decodeInt4Array(vr)
+	case *[]uint32:
+		var valInt []int32
+		valInt = decodeInt4Array(vr)
+		ret := make([]uint32, 0, len(valInt))
+		for _, v := range valInt {
+			if v < 0 {
+				return fmt.Errorf("%d is less than zero for uint32", valInt)
+			}
+			ret = append(ret, uint32(v))
+		}
+		*v = ret
 	case *[]int64:
 		*v = decodeInt8Array(vr)
 	case *[]uint64:
@@ -1682,6 +1695,24 @@ func encodeInt32Slice(w *WriteBuf, oid Oid, slice []int32) error {
 	for _, v := range slice {
 		w.WriteInt32(4)
 		w.WriteInt32(v)
+	}
+
+	return nil
+}
+
+func encodeUInt32Slice(w *WriteBuf, oid Oid, slice []uint32) error {
+	if oid != Int4ArrayOid {
+		return fmt.Errorf("cannot encode Go %s into oid %d", "[]uint32", oid)
+	}
+
+	encodeArrayHeader(w, Int4Oid, len(slice), 8)
+	for _, v := range slice {
+		if v <= math.MaxInt32 {
+			w.WriteInt32(4)
+			w.WriteInt32(int32(v))
+		} else {
+			return fmt.Errorf("%d is larger than max integer %d", v, math.MaxInt32)
+		}
 	}
 
 	return nil
