@@ -501,6 +501,14 @@ func TestArrayDecoding(t *testing.T) {
 			},
 		},
 		{
+			"select $1::bigint[]", []int64{2, 4, 484, 9223372036854775807}, &[]int64{},
+			func(t *testing.T, query, scan interface{}) {
+				if reflect.DeepEqual(query, *(scan.(*[]int64))) == false {
+					t.Errorf("failed to encode bigint[]")
+				}
+			},
+		},
+		{
 			"select $1::bigint[]", []uint64{2, 4, 484, 9223372036854775807}, &[]uint64{},
 			func(t *testing.T, query, scan interface{}) {
 				if reflect.DeepEqual(query, *(scan.(*[]uint64))) == false {
