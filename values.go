@@ -644,6 +644,8 @@ func Encode(wbuf *WriteBuf, oid Oid, arg interface{}) error {
 		return encodeInt64Slice(wbuf, oid, arg)
 	case uint64:
 		return encodeUInt64(wbuf, oid, arg)
+	case []uint64:
+		return encodeUInt64Slice(wbuf, oid, arg)
 	case int:
 		return encodeInt(wbuf, oid, arg)
 	case float32:
@@ -732,6 +734,8 @@ func Decode(vr *ValueReader, d interface{}) error {
 		*v = decodeInt4Array(vr)
 	case *[]int64:
 		*v = decodeInt8Array(vr)
+	case *[]uint64:
+		*v = decodeInt8ArrayToUInt(vr)
 	case *[]float32:
 		*v = decodeFloat4Array(vr)
 	case *[]float64:
@@ -1713,6 +1717,50 @@ func decodeInt8Array(vr *ValueReader) []int64 {
 	return a
 }
 
+func decodeInt8ArrayToUInt(vr *ValueReader) []uint64 {
+	if vr.Len() == -1 {
+		return nil
+	}
+
+	if vr.Type().DataType != Int8ArrayOid {
+		vr.Fatal(ProtocolError(fmt.Sprintf("Cannot decode oid %v into []uint64", vr.Type().DataType)))
+		return nil
+	}
+
+	if vr.Type().FormatCode != BinaryFormatCode {
+		vr.Fatal(ProtocolError(fmt.Sprintf("Unknown field description format code: %v", vr.Type().FormatCode)))
+		return nil
+	}
+
+	numElems, err := decode1dArrayHeader(vr)
+	if err != nil {
+		vr.Fatal(err)
+		return nil
+	}
+
+	a := make([]uint64, int(numElems))
+	for i := 0; i < len(a); i++ {
+		elSize := vr.ReadInt32()
+		switch elSize {
+		case 8:
+			tmp := vr.ReadInt64()
+			if tmp < 0 {
+				vr.Fatal(ProtocolError("Possible loss of data: stored value was negative"))
+				return nil
+			}
+			a[i] = uint64(tmp)
+		case -1:
+			vr.Fatal(ProtocolError("Cannot decode null element"))
+			return nil
+		default:
+			vr.Fatal(ProtocolError(fmt.Sprintf("Received an invalid size for an int8 element: %d", elSize)))
+			return nil
+		}
+	}
+
+	return a
+}
+
 func encodeInt64Slice(w *WriteBuf, oid Oid, slice []int64) error {
 	if oid != Int8ArrayOid {
 		return fmt.Errorf("cannot encode Go %s into oid %d", "[]int64", oid)
@@ -1722,6 +1770,24 @@ func encodeInt64Slice(w *WriteBuf, oid Oid, slice []int64) error {
 	for _, v := range slice {
 		w.WriteInt32(8)
 		w.WriteInt64(v)
+	}
+
+	return nil
+}
+
+func encodeUInt64Slice(w *WriteBuf, oid Oid, slice []uint64) error {
+	if oid != Int8ArrayOid {
+		return fmt.Errorf("cannot encode Go %s into oid %d", "[]uint64", oid)
+	}
+
+	encodeArrayHeader(w, Int8Oid, len(slice), 12)
+	for _, v := range slice {
+		if v <= math.MaxInt64 {
+			w.WriteInt32(8)
+			w.WriteInt64(int64(v))
+		} else {
+			return fmt.Errorf("%d is larger than max int64 %d", v, math.MaxInt64)
+		}
 	}
 
 	return nil
