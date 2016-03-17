@@ -493,6 +493,22 @@ func TestArrayDecoding(t *testing.T) {
 			},
 		},
 		{
+			"select $1::smallint[]", []int16{2, 4, 484, 32767}, &[]int16{},
+			func(t *testing.T, query, scan interface{}) {
+				if reflect.DeepEqual(query, *(scan.(*[]int16))) == false {
+					t.Errorf("failed to encode smallint[]")
+				}
+			},
+		},
+		{
+			"select $1::smallint[]", []uint16{2, 4, 484, 32767}, &[]uint16{},
+			func(t *testing.T, query, scan interface{}) {
+				if reflect.DeepEqual(query, *(scan.(*[]uint16))) == false {
+					t.Errorf("failed to encode smallint[]")
+				}
+			},
+		},
+		{
 			"select $1::int[]", []int32{2, 4, 484}, &[]int32{},
 			func(t *testing.T, query, scan interface{}) {
 				if reflect.DeepEqual(query, *(scan.(*[]int32))) == false {
